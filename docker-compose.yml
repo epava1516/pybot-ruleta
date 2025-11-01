@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   proxy:
     image: nginx:alpine
@@ -5,9 +7,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    env_file:
+      - .env                  # ← toma DOMAIN y también NGINX_ENVSUBST_OUTPUT_DIR si lo pones ahí
     environment:
-      - DOMAIN=${DOMAIN}
-      # nginx oficial hará envsubst de templates -> conf.d
+      # Si prefieres centralizarlo en .env, elimina esta línea y define NGINX_ENVSUBST_OUTPUT_DIR en .env
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/conf.d
     volumes:
       - ./nginx/templates:/etc/nginx/templates:ro
@@ -20,16 +23,8 @@ services:
   bot:
     image: ghcr.io/epava1516/pybot-ruleta:latest
     container_name: roulette_bot_telegram
-    environment:
-      - TOKEN=${TOKEN}
-      - DOMAIN=${DOMAIN}
-      - DATA_FILE=${DATA_FILE}
-      - DEFAULT_WINDOW=${DEFAULT_WINDOW}
-      - DEFAULT_DATA_LIMIT=${DEFAULT_DATA_LIMIT}
-      - ENVIRONMENT=${ENVIRONMENT}
-      - LOG_LEVEL=${LOG_LEVEL}
-      - WEB_HOST=0.0.0.0
-      - WEB_PORT=8080
+    env_file:
+      - .env                  # ← TOKEN, DOMAIN, DATA_FILE, DEFAULT_*, ENVIRONMENT, LOG_LEVEL, WEB_HOST, WEB_PORT
     expose:
       - "8080"
     restart: unless-stopped
@@ -37,6 +32,8 @@ services:
   certbot:
     image: certbot/certbot:latest
     container_name: certbot
+    env_file:
+      - .env                  # ← usa EMAIL/DOMAIN si quieres referenciarlos también aquí
     volumes:
       - cert-data:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
@@ -68,7 +65,6 @@ services:
           sleep 5;
           echo '[reloader] certs changed -> nginx reload';
           docker exec proxy nginx -s reload || true;
-          # pequeño debounce
           sleep 2;
         done
       "
