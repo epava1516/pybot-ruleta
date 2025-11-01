@@ -2,51 +2,66 @@ services:
   proxy:
     image: nginx:alpine
     container_name: proxy
-    env_file: .env
     ports:
       - "80:80"
       - "443:443"
     environment:
       - DOMAIN=${DOMAIN}
-      # El entrypoint oficial hará envsubst de /etc/nginx/templates -> /etc/nginx/conf.d
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/conf.d
     volumes:
       - ./nginx/templates:/etc/nginx/templates:ro
       - ./certbot/www:/var/www/certbot:ro
       - cert-data:/etc/letsencrypt
     depends_on:
-      - bot
+      bot:
+        condition: service_healthy
     restart: unless-stopped
 
   bot:
     image: ghcr.io/epava1516/pybot-ruleta:latest
     container_name: roulette_bot_telegram
-    env_file: .env
     environment:
+      - TOKEN=${TOKEN}
+      - DOMAIN=${DOMAIN}
+      - DATA_FILE=${DATA_FILE}
+      - DEFAULT_WINDOW=${DEFAULT_WINDOW}
+      - DEFAULT_DATA_LIMIT=${DEFAULT_DATA_LIMIT}
+      - ENVIRONMENT=${ENVIRONMENT}
+      - LOG_LEVEL=${LOG_LEVEL}
       - WEB_HOST=0.0.0.0
       - WEB_PORT=8080
     expose:
       - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
+      interval: 10s
+      timeout: 2s
+      retries: 10
+      start_period: 15s
     restart: unless-stopped
 
+  # Primer certificado (si no existe) y renovaciones cada 12h vía webroot
   certbot:
     image: certbot/certbot:latest
     container_name: certbot
-    env_file: .env
+    environment:
+      - DOMAIN=${DOMAIN}
+      - EMAIL=${EMAIL}
     volumes:
       - cert-data:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
     entrypoint: >
-      sh -c '
-        certbot certonly --non-interactive --agree-tos --email ${EMAIL}
-          --webroot -w /var/www/certbot -d ${DOMAIN} || true;
+      sh -c "
+        certbot certonly --non-interactive --agree-tos
+        --email ${EMAIL} --webroot -w /var/www/certbot -d ${DOMAIN} || true;
         while true; do
-          certbot renew --webroot -w /var/www/certbot --quiet;
+          certbot renew --non-interactive --quiet --webroot -w /var/www/certbot;
           sleep 12h;
         done
-      '
+      "
     restart: unless-stopped
 
+  # Recarga NGINX cuando cambian los certs
   reloader:
     image: alpine:3.20
     container_name: nginx-reloader
@@ -68,31 +83,6 @@ services:
         done
       "
     restart: unless-stopped
-
-  bootstrap_cert:
-    image: alpine:3.20
-    container_name: bootstrap_cert
-    env_file: .env
-    depends_on:
-      - proxy
-    volumes:
-      - cert-data:/etc/letsencrypt
-    entrypoint: >
-      sh -c '
-        set -e
-        L=/etc/letsencrypt/live/${DOMAIN};
-        if [ ! -f "$L/fullchain.pem" ] || [ ! -f "$L/privkey.pem" ]; then
-          apk add --no-cache openssl >/dev/null;
-          mkdir -p "$L";
-          openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
-            -keyout "$L/privkey.pem" -out "$L/fullchain.pem" \
-            -subj "/CN=${DOMAIN}";
-          echo "[bootstrap_cert] Self-signed listo";
-        else
-          echo "[bootstrap_cert] Cert ya existe, nada que hacer";
-        fi
-      '
-    restart: "no"
 
 volumes:
   cert-data:

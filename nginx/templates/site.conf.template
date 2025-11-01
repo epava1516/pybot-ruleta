@@ -1,12 +1,10 @@
-# nginx/templates/site.conf.template
-
 # HTTP -> HTTPS y ACME webroot
 server {
     listen 80;
     listen [::]:80;
     server_name $DOMAIN;
 
-    # Desafío ACME (Certbot - http-01)
+    # Desafío ACME (Certbot)
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
         default_type "text/plain";
@@ -19,10 +17,9 @@ server {
 
 # HTTPS reverse-proxy
 server {
-    listen 443 ssl;         # ← sin "http2" aquí (deprecated en 'listen')
+    listen 443 ssl;         # HTTP/2 moderno: habilita con 'http2 on;' en vez de en 'listen'
     listen [::]:443 ssl;
-    http2 on;               # ← habilita HTTP/2 con la directiva moderna
-
+    http2 on;
     server_name $DOMAIN;
 
     # Certs de Let's Encrypt (volumen compartido)
@@ -45,10 +42,8 @@ server {
     gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml;
     gzip_min_length 512;
 
-    # ---- Upstream por variable para resolver en runtime ----
-    # Docker DNS embebido (compose) para resolver nombres de servicio
+    # Docker DNS para nombres de servicio (p.ej., 'bot')
     resolver 127.0.0.11 valid=30s ipv6=off;
-    set $up_bot "http://bot:8080";
 
     # Proxy headers
     proxy_set_header Host              $host;
@@ -56,15 +51,19 @@ server {
     proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
 
+    # Timeouts y reintentos razonables
+    proxy_connect_timeout 5s;
+    proxy_send_timeout    60s;
+    proxy_read_timeout    60s;
+    proxy_next_upstream   error timeout http_502 http_503 http_504;
+
     # App Flask (UI + API)
     location / {
-        proxy_pass $up_bot;
-        proxy_read_timeout 60s;
+        proxy_pass http://bot:8080/;
     }
 
-    # Health
     location = /health {
-        proxy_pass $up_bot/health;
+        proxy_pass http://bot:8080/health;
     }
 }
 

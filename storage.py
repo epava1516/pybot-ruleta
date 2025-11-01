@@ -35,7 +35,7 @@ def _ensure_chat_struct(ch):
     ch.setdefault("history", [])
     ch.setdefault("window", [])
     ch.setdefault("cfg", DEFAULT_CFG.copy())
-    for k,v in DEFAULT_CFG.items():
+    for k, v in DEFAULT_CFG.items():
         ch["cfg"].setdefault(k, v)
     return ch
 
@@ -67,7 +67,7 @@ def get_cfg(chat_id):
 def set_cfg(chat_id, **updates):
     data = _get_all()
     ch = _get_chat_node(data, chat_id)
-    ch["cfg"].update({k:v for k,v in updates.items() if k in DEFAULT_CFG})
+    ch["cfg"].update({k: v for k, v in updates.items() if k in DEFAULT_CFG})
     _save_raw(data)
     return ch["cfg"].copy()
 
@@ -167,7 +167,7 @@ def compute_stats(chat_id):
     counts["filas"] = [
         sum(1 for n in use if n in FILA_SUPERIOR),
         sum(1 for n in use if n in FILA_CENTRAL),
-        sum(1 for n in use si n in FILA_INFERIOR),
+        sum(1 for n in use if n in FILA_INFERIOR),  # <-- corregido
     ]
 
     def pct(v): return round(100 * v / total, 1) if total else 0.0
