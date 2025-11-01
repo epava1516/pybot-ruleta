@@ -1,53 +1,57 @@
-name: Publish Docker image
+name: build-and-push
 
 on:
   push:
-    branches: [ "main", "master" ]   # publica al pushear a estas ramas
-    tags:     [ "v*.*.*", "v*.*", "v*" ]  # publica al crear tags tipo semver
-  workflow_dispatch: {}               # permitir lanzamiento manual
-
-permissions:
-  contents: read
-  packages: write   # necesario para publicar en ghcr.io
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}   # epava1516/pybot-ruleta
+    branches: [ "main", "master" ]
+    tags: [ "v*" ]
+  workflow_dispatch:
 
 jobs:
-  build-and-push:
+  docker:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # necesario para empujar a GHCR
+      id-token: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up QEMU (opcional, para multi-arch)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx (docker-container driver)
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker metadata (tags, labels)
+      - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ghcr.io/epava1516/pybot-ruleta
           tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
             type=ref,event=branch
             type=ref,event=tag
-            type=sha
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
+      - name: Build & Push
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
-          cache-to:   type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
