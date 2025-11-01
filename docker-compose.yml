@@ -2,60 +2,49 @@ services:
   proxy:
     image: nginx:alpine
     container_name: proxy
+    env_file: .env
     ports:
       - "80:80"
-      # ⚠️ Activa 443 SOLO DESPUÉS del primer certificado:
-      # - "443:443"
+      - "443:443"
     environment:
       - DOMAIN=${DOMAIN}
+      # El entrypoint oficial hará envsubst de /etc/nginx/templates -> /etc/nginx/conf.d
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/conf.d
     volumes:
-      # ➊ Arranque inicial: solo plantilla HTTP (sin SSL)
-      - ./nginx/templates-httponly:/etc/nginx/templates:ro
+      - ./nginx/templates:/etc/nginx/templates:ro
       - ./certbot/www:/var/www/certbot:ro
       - cert-data:/etc/letsencrypt
     depends_on:
-      bot:
-        condition: service_healthy
+      - bot
     restart: unless-stopped
 
   bot:
     image: ghcr.io/epava1516/pybot-ruleta:latest
-    container_name: bot
-    env_file:
-      - .env
+    container_name: roulette_bot_telegram
+    env_file: .env
     environment:
       - WEB_HOST=0.0.0.0
       - WEB_PORT=8080
     expose:
       - "8080"
-    networks:
-      default:
-        aliases: ["bot"]
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
-      interval: 10s
-      timeout: 3s
-      retries: 10
     restart: unless-stopped
 
   certbot:
     image: certbot/certbot:latest
     container_name: certbot
+    env_file: .env
     volumes:
       - cert-data:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
     entrypoint: >
-      sh -c "
-        certbot certonly --non-interactive --agree-tos
-        -m ${EMAIL}
-        --webroot -w /var/www/certbot
-        -d ${DOMAIN} || true;
+      sh -c '
+        certbot certonly --non-interactive --agree-tos --email ${EMAIL}
+          --webroot -w /var/www/certbot -d ${DOMAIN} || true;
         while true; do
           certbot renew --webroot -w /var/www/certbot --quiet;
           sleep 12h;
         done
-      "
+      '
     restart: unless-stopped
 
   reloader:
@@ -66,25 +55,44 @@ services:
     volumes:
       - cert-data:/etc/letsencrypt:ro
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./nginx:/nginx
     entrypoint: >
       sh -c "
         apk add --no-cache inotify-tools docker-cli >/dev/null &&
-        echo '[reloader] watching certs & switching HTTPS when ready' &&
+        echo '[reloader] watching /etc/letsencrypt/live for changes' &&
         while true; do
-          # espera a que exista el primer certificado
-          if [ -f /etc/letsencrypt/live/${DOMAIN}/fullchain.pem ] && [ -f /etc/letsencrypt/live/${DOMAIN}/privkey.pem ]; then
-            # Copia plantillas HTTPS y fuerza reload
-            rm -rf /etc/nginx/conf.d/* 2>/dev/null || true
-            cp /nginx/generated/site.https.conf /etc/nginx/conf.d/site.conf 2>/dev/null || true
-            docker exec proxy nginx -s reload || true
-            sleep 300
-          else
-            sleep 5
-          fi
+          inotifywait -e modify,create,delete,move -r /etc/letsencrypt/live 2>/dev/null ||
+          sleep 5;
+          echo '[reloader] certs changed -> nginx reload';
+          docker exec proxy nginx -s reload || true;
+          sleep 2;
         done
       "
     restart: unless-stopped
+
+  bootstrap_cert:
+    image: alpine:3.20
+    container_name: bootstrap_cert
+    env_file: .env
+    depends_on:
+      - proxy
+    volumes:
+      - cert-data:/etc/letsencrypt
+    entrypoint: >
+      sh -c '
+        set -e
+        L=/etc/letsencrypt/live/${DOMAIN};
+        if [ ! -f "$L/fullchain.pem" ] || [ ! -f "$L/privkey.pem" ]; then
+          apk add --no-cache openssl >/dev/null;
+          mkdir -p "$L";
+          openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
+            -keyout "$L/privkey.pem" -out "$L/fullchain.pem" \
+            -subj "/CN=${DOMAIN}";
+          echo "[bootstrap_cert] Self-signed listo";
+        else
+          echo "[bootstrap_cert] Cert ya existe, nada que hacer";
+        fi
+      '
+    restart: "no"
 
 volumes:
   cert-data:
