@@ -1,46 +1,56 @@
-version: "3.9"
-
 services:
   proxy:
     image: nginx:alpine
     container_name: proxy
     ports:
       - "80:80"
-      - "443:443"
-    env_file:
-      - .env                  # ← toma DOMAIN y también NGINX_ENVSUBST_OUTPUT_DIR si lo pones ahí
+      # ⚠️ Activa 443 SOLO DESPUÉS del primer certificado:
+      # - "443:443"
     environment:
-      # Si prefieres centralizarlo en .env, elimina esta línea y define NGINX_ENVSUBST_OUTPUT_DIR en .env
+      - DOMAIN=${DOMAIN}
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/conf.d
     volumes:
-      - ./nginx/templates:/etc/nginx/templates:ro
+      # ➊ Arranque inicial: solo plantilla HTTP (sin SSL)
+      - ./nginx/templates-httponly:/etc/nginx/templates:ro
       - ./certbot/www:/var/www/certbot:ro
       - cert-data:/etc/letsencrypt
     depends_on:
-      - bot
+      bot:
+        condition: service_healthy
     restart: unless-stopped
 
   bot:
     image: ghcr.io/epava1516/pybot-ruleta:latest
-    container_name: roulette_bot_telegram
+    container_name: bot
     env_file:
-      - .env                  # ← TOKEN, DOMAIN, DATA_FILE, DEFAULT_*, ENVIRONMENT, LOG_LEVEL, WEB_HOST, WEB_PORT
+      - .env
+    environment:
+      - WEB_HOST=0.0.0.0
+      - WEB_PORT=8080
     expose:
       - "8080"
+    networks:
+      default:
+        aliases: ["bot"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
     restart: unless-stopped
 
   certbot:
     image: certbot/certbot:latest
     container_name: certbot
-    env_file:
-      - .env                  # ← usa EMAIL/DOMAIN si quieres referenciarlos también aquí
     volumes:
       - cert-data:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
     entrypoint: >
       sh -c "
-        certbot certonly --non-interactive --agree-tos --email ${EMAIL}
-        --webroot -w /var/www/certbot -d ${DOMAIN} || true;
+        certbot certonly --non-interactive --agree-tos
+        -m ${EMAIL}
+        --webroot -w /var/www/certbot
+        -d ${DOMAIN} || true;
         while true; do
           certbot renew --webroot -w /var/www/certbot --quiet;
           sleep 12h;
@@ -56,16 +66,22 @@ services:
     volumes:
       - cert-data:/etc/letsencrypt:ro
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./nginx:/nginx
     entrypoint: >
       sh -c "
         apk add --no-cache inotify-tools docker-cli >/dev/null &&
-        echo '[reloader] watching /etc/letsencrypt/live for changes' &&
+        echo '[reloader] watching certs & switching HTTPS when ready' &&
         while true; do
-          inotifywait -e modify,create,delete,move -r /etc/letsencrypt/live 2>/dev/null ||
-          sleep 5;
-          echo '[reloader] certs changed -> nginx reload';
-          docker exec proxy nginx -s reload || true;
-          sleep 2;
+          # espera a que exista el primer certificado
+          if [ -f /etc/letsencrypt/live/${DOMAIN}/fullchain.pem ] && [ -f /etc/letsencrypt/live/${DOMAIN}/privkey.pem ]; then
+            # Copia plantillas HTTPS y fuerza reload
+            rm -rf /etc/nginx/conf.d/* 2>/dev/null || true
+            cp /nginx/generated/site.https.conf /etc/nginx/conf.d/site.conf 2>/dev/null || true
+            docker exec proxy nginx -s reload || true
+            sleep 300
+          else
+            sleep 5
+          fi
         done
       "
     restart: unless-stopped

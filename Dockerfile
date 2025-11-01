@@ -18,26 +18,22 @@ RUN pip install --upgrade pip && \
 # Copia el resto del código
 COPY . .
 
+# Dockerfile (corrige SOLO la parte final)
 ### 2) Etapa de producción
 FROM python:3.13-slim AS runtime
-
 WORKDIR /app
 
-# Crea usuario no-root para mayor seguridad
-RUN groupadd --gid 1001 appgroup && \
-    useradd --uid 1001 --gid appgroup --home-dir /app --no-create-home --shell /usr/sbin/nologin appuser
-
-# Copia desde builder
+# Copia binarios/paquetes instalados en la etapa de build
+COPY --from=builder /usr/local /usr/local
+# Copia el código
 COPY --from=builder /app /app
 
-# Ajusta permisos
-RUN chown -R appuser:appgroup /app
-
+# Usuario no-root
+RUN groupadd --gid 1001 appgroup && \
+    useradd --uid 1001 --gid appgroup --home-dir /app --no-create-home --shell /usr/sbin/nologin appuser && \
+    chown -R appuser:appgroup /app
 USER appuser
 
-# Expone puerto si tu web lo requiere (ajústalo)
 EXPOSE 8080
-
-# Define el comando de inicio (ajústalo según tu main.py/app)
 ENTRYPOINT ["python", "main.py"]
 
