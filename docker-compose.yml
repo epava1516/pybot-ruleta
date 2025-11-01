@@ -18,7 +18,7 @@ services:
     restart: unless-stopped
 
   bot:
-    image: tuusuario/roulette_bot_telegram:latest
+    image: ghcr.io/epava1516/pybot-ruleta:latest
     container_name: roulette_bot_telegram
     environment:
       - TOKEN=${TOKEN}
