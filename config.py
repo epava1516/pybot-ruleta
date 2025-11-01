@@ -1,5 +1,6 @@
 import os
 import sys
+import secrets
 
 # -----------------------------
 # Variables de entorno obligatorias
@@ -31,10 +32,15 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 # -----------------------------
-# Webhook URL para Telegram
+# Modo de ejecución del bot
 # -----------------------------
-WEBHOOK_PATH = os.getenv("WEBHOOK_PATH", TOKEN)  # puedes definir ruta personalizada si quieres
-WEBHOOK_URL = f"https://{DOMAIN}/{WEBHOOK_PATH}"
+MODE = os.getenv("MODE", "polling").lower()  # "polling" | "webhook"
+PUBLIC_URL = os.getenv("PUBLIC_URL", f"https://{DOMAIN}").rstrip("/")
+# Secreto para cabecera X-Telegram-Bot-Api-Secret-Token
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET") or secrets.token_urlsafe(24)
+
+# URL final del webhook (ruta fija)
+WEBHOOK_URL = f"{PUBLIC_URL}/telegram/webhook"
 
 # -----------------------------
 # Imprimir configuración para debug (omite en producción)
@@ -43,6 +49,7 @@ if ENVIRONMENT.lower() != "production":
     print(f"CONFIG --> TOKEN=[***hidden***], DOMAIN={DOMAIN}")
     print(f"CONFIG --> DATA_FILE={DATA_FILE}")
     print(f"CONFIG --> DEFAULT_WINDOW={DEFAULT_WINDOW}, DEFAULT_DATA_LIMIT={DEFAULT_DATA_LIMIT}")
+    print(f"CONFIG --> MODE={MODE}, PUBLIC_URL={PUBLIC_URL}")
     print(f"CONFIG --> WEBHOOK_URL={WEBHOOK_URL}")
     print(f"CONFIG --> ENVIRONMENT={ENVIRONMENT}, LOG_LEVEL={LOG_LEVEL}")
 
