@@ -1,0 +1,4 @@
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:var(--gap)}
+.btn-num{padding:10px;border-radius:10px;text-align:center;cursor:pointer;user-select:none;border:1px solid var(--chip-br);font-weight:600;line-height:1;box-sizing:border-box;color:#fff}
+.btn-num.zero{background:#2ecc71}.btn-num.red{background:#e74c3c}.btn-num.black{background:#2c3e50}
+.btn-num.selected{outline:3px solid var(--accent)}

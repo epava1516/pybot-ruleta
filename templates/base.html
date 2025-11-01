@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>{% block title %}Ruleta — Mini App{% endblock %}</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    {% block head %}{% endblock %}
+  </head>
+  <body>
+    {% block body %}{% endblock %}
+    {% block scripts %}
+      <script>
+        window.__CHAT_ID__ = "{{ chat_id|default('', true) }}";
+      </script>
+      <!-- Carga el bundle modular -->
+      <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% endblock %}
+  </body>
+</html>

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block body %}
+  <h1 class="h1">Ruleta — Mini App</h1>
+
+  <!-- Toolbar principal -->
+  <div id="toolbar-actions" class="toolbar">
+    <button id="btnAdd" class="toolbtn">➕ Añadir número</button>
+    <button id="btnRollback" class="toolbtn">↩ Eliminar último</button>
+    <button id="btnReset" class="toolbtn">🧨 Reset</button>
+    <button id="btnRefresh" class="toolbtn">↻ Refrescar</button>
+    <button id="btnSettings" class="toolbtn">⚙ Ajustes</button>
+  </div>
+
+  <!-- Vista: Estadísticas -->
+  <section id="view-stats" class="view active">
+    <div id="stats" class="panel">
+      <div class="muted">Cargando estadísticas…</div>
+    </div>
+  </section>
+
+  <!-- Vista: Números (su propia toolbar interna) -->
+  <section id="view-numbers" class="view">
+    <h2 class="h2">Elige número</h2>
+    <div id="grid" class="grid"></div>
+    <div class="toolbar" style="margin-top:12px;">
+      <button id="btnSaveNumber" class="toolbtn primary" disabled>✅ Guardar número</button>
+      <button id="btnCancelNumber" class="toolbtn">↩ Cancelar</button>
+    </div>
+  </section>
+
+  <!-- Vista: Ajustes -->
+  <section id="view-settings" class="view">
+    <h2 class="h2">Ajustes</h2>
+
+    <!-- Ventana -->
+    <div class="card settings-group">
+      <div class="group-title">Ventana de cómputo</div>
+
+      <div class="field">
+        <div class="label">Tamaño rápido</div>
+        <div class="control">
+          <div id="cfg-window-pills" class="pill-row">
+            <span class="pill" data-size="5">5</span>
+            <span class="pill" data-size="10">10</span>
+            <span class="pill" data-size="15">15</span>
+            <span class="pill" data-size="20">20</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="cfg-window-custom" class="label">Tamaño personalizado</label>
+        <div class="control">
+          <input id="cfg-window-custom" class="input" type="number" min="1" max="5000" step="1" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Fuente de estadísticas -->
+    <div class="card settings-group">
+      <div class="group-title">Fuente de estadísticas</div>
+
+      <div class="field">
+        <div class="label">Origen</div>
+        <div class="control radios">
+          <label class="radio">
+            <input type="radio" name="cfg-source" id="cfg-source-window" value="window">
+            Ventana manual
+          </label>
+          <label class="radio">
+            <input type="radio" name="cfg-source" id="cfg-source-history" value="history">
+            Últimas K del historial
+          </label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="cfg-hist-tail" class="label">K (si historial)</label>
+        <div class="control">
+          <input id="cfg-hist-tail" class="input" type="number" min="1" max="5000" step="1" />
+        </div>
+      </div>
+
+      <p class="hint">Si eliges <strong>Ventana manual</strong>, se usa exactamente el tamaño configurado arriba.
+        Si eliges <strong>Historial</strong>, siempre se usan las últimas <em>K</em> tiradas globales (acotadas por la ventana).</p>
+    </div>
+
+    <!-- Presentación -->
+    <div class="card settings-group">
+      <div class="group-title">Presentación</div>
+      <div class="field">
+        <label for="cfg-history-cap" class="label">Últimas mostradas (UI)</label>
+        <div class="control">
+          <input id="cfg-history-cap" class="input" type="number" min="1" max="200" step="1" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Tema -->
+    <div class="card settings-group">
+      <div class="group-title">Tema</div>
+      <div class="field">
+        <div class="label">Apariencia</div>
+        <div class="control">
+          <div id="cfg-theme" class="seg">
+            <button type="button" class="seg-btn" data-theme="dark">Oscuro</button>
+            <button type="button" class="seg-btn" data-theme="light">Claro</button>
+          </div>
+        </div>
+      </div>
+      <p class="hint">El modo oscuro es el predeterminado. Tu preferencia se guarda en este dispositivo.</p>
+    </div>
+
+    <!-- Footer de ajustes (solo en esta vista) -->
+    <div id="settings-footer" class="toolbar" style="margin-top:12px;">
+      <button id="btnSaveSettings" class="toolbtn primary" disabled>💾 Guardar</button>
+      <button id="btnDiscardSettings" class="toolbtn">↩ Descartar</button>
+    </div>
+  </section>
+
+{% endblock %}
