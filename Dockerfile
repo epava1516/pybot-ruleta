@@ -1,6 +1,7 @@
+# Dockerfile
 # syntax=docker/dockerfile:1
 
-### 1) Etapa de build (opcional, solo para caché de dependencias)
+### 1) Etapa de build
 FROM python:3.13-slim AS builder
 
 ENV PYTHONUNBUFFERED=1 \
@@ -8,46 +9,36 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
-COPY requirements.txt .
-# Preinstalamos en builder para cachear capas, pero NO copiamos site-packages luego.
-RUN pip install --upgrade pip && pip wheel --no-cache-dir --wheel-dir=/wheels -r requirements.txt
 
-### 2) Etapa final (runtime) — aquí es donde debe quedar todo instalado
+COPY requirements.txt .
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
+
+COPY . .
+
+### 2) Etapa de producción
 FROM python:3.13-slim AS runtime
 
-ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
-# Seguridad: usuario no root
+# Usuario no-root
 RUN groupadd --gid 1001 appgroup && \
     useradd --uid 1001 --gid appgroup --home-dir /app --no-create-home --shell /usr/sbin/nologin appuser
 
-# Copiamos ruedas y requirements para instalar EN ESTA ETAPA
-COPY --from=builder /wheels /wheels
-COPY requirements.txt .
-
-# Instalamos dependencias en la etapa final
-RUN pip install --upgrade pip && pip install --no-cache-dir --find-links=/wheels -r requirements.txt
-
-# Copiamos el código
-COPY . .
+# Copia artefactos
+COPY --from=builder /app /app
 
 # Permisos
 RUN chown -R appuser:appgroup /app
 USER appuser
 
-# Puerto de la mini-app
 EXPOSE 8080
 
-# Healthcheck sin wget/curl (usa Python estándar)
-HEALTHCHECK --interval=30s --timeout=3s --retries=5 CMD python - <<'PY'
-import urllib.request, sys
-try:
-    with urllib.request.urlopen("http://127.0.0.1:8080/health", timeout=2) as r:
-        sys.exit(0 if r.status == 200 else 1)
-except Exception:
-    sys.exit(1)
-PY
+# HEALTHCHECK en exec form (sin curl/wget)
+HEALTHCHECK --interval=30s --timeout=3s --retries=5 CMD \
+  ["python","-c","import urllib.request,sys; \
+u=urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=2); \
+sys.exit(0 if u.status==200 else 1)"]
 
 ENTRYPOINT ["python", "main.py"]
 

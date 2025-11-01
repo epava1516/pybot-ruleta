@@ -1,3 +1,4 @@
+# storage.py
 import json
 from pathlib import Path
 from config import DATA_FILE  # usar el path desde variables de entorno
@@ -167,7 +168,7 @@ def compute_stats(chat_id):
     counts["filas"] = [
         sum(1 for n in use if n in FILA_SUPERIOR),
         sum(1 for n in use if n in FILA_CENTRAL),
-        sum(1 for n in use if n in FILA_INFERIOR),
+        sum(1 for n in use if n in FILA_INFERIOR),  # <-- corregido: if (no "si")
     ]
 
     def pct(v): return round(100 * v / total, 1) if total else 0.0
