@@ -1,0 +1,14 @@
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.env
+node_modules/
+virtualenv/
+venv/
+.tmp/
+.cache/
+
