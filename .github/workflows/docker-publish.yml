@@ -1,65 +1,26 @@
-name: Publish Docker image (GHCR)
+name: Publish Docker image
 
 on:
   push:
-    branches:
-      - main
-      - master
-    paths:
-      - "**/*.py"
-      - "Dockerfile"
-      - "pyproject.toml"
-      - "requirements*.txt"
-      - ".github/workflows/publish.yml"
-  pull_request:
-    paths:
-      - "**/*.py"
-      - "Dockerfile"
-      - "pyproject.toml"
-      - "requirements*.txt"
-  # Publica versiones con semver al crear tags tipo v1.2.3
-  tags:
-    - "v*.*.*"
+    branches: [ "main", "master" ]   # publica al pushear a estas ramas
+    tags:     [ "v*.*.*", "v*.*", "v*" ]  # publica al crear tags tipo semver
+  workflow_dispatch: {}               # permitir lanzamiento manual
 
 permissions:
   contents: read
-  packages: write
+  packages: write   # necesario para publicar en ghcr.io
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }} # epava1516/pybot-ruleta
+  IMAGE_NAME: ${{ github.repository }}   # epava1516/pybot-ruleta
 
 jobs:
   build-and-push:
-    name: Build and push
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Extrae tags y labels según contexto (branch/tag/sha)
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=tag
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha,format=short,prefix=sha-
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Login en GHCR con el GITHUB_TOKEN del propio workflow
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -67,24 +28,26 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Docker metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
       - name: Build and push
-        id: build-push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          platforms: linux/amd64,linux/arm64
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # (Opcional) Attestations/SBOM; requiere permisos extra
-      # - name: Generate artifact attestation
-      #   uses: actions/attest-build-provenance@v2
-      #   with:
-      #     subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-      #     subject-digest: ${{ steps.build-push.outputs.digest }}
-      #     push-to-registry: true
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to:   type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
 
