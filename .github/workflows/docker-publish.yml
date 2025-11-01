@@ -1,45 +1,57 @@
-name: Build & Push Docker image
+name: Publish Docker image (GHCR)
 
 on:
   push:
-    branches: [ "main" ]
-    tags:     [ "v*.*.*" ]   # p.ej. v1.2.3
-  workflow_dispatch: {}
+    branches:
+      - main
+      - master
+    paths:
+      - "**/*.py"
+      - "Dockerfile"
+      - "pyproject.toml"
+      - "requirements*.txt"
+      - ".github/workflows/publish.yml"
+  pull_request:
+    paths:
+      - "**/*.py"
+      - "Dockerfile"
+      - "pyproject.toml"
+      - "requirements*.txt"
+  # Publica versiones con semver al crear tags tipo v1.2.3
+  tags:
+    - "v*.*.*"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }} # epava1516/pybot-ruleta
 
 jobs:
-  docker:
+  build-and-push:
+    name: Build and push
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      packages: write
-
-    env:
-      # Cambia esto a tu repo de Docker Hub
-      IMAGE_NAME: ${{ vars.DOCKERHUB_IMAGE || 'tuusuario/roulette_bot_telegram' }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # (Opcional) Genera metadatos/etiquetas automáticamente
+      # Extrae tags y labels según contexto (branch/tag/sha)
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_NAME }}
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch
-            type=sha
+            type=ref,event=tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-
-          labels: |
-            org.opencontainers.image.title=roulette-bot-telegram
-            org.opencontainers.image.source=${{ github.repositoryUrl }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
+            type=semver,pattern={{major}}
+            type=sha,format=short,prefix=sha-
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -47,25 +59,32 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
+      # Login en GHCR con el GITHUB_TOKEN del propio workflow
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Cache de capas (BuildKit inline cache + GitHub cache)
-      - name: Build & Push
-        uses: docker/build-push-action@v6
+      - name: Build and push
+        id: build-push
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64,linux/arm64
-          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Si quieres pasar build args (p.ej. VERSION):
-          build-args: |
-            VERSION=${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # (Opcional) Attestations/SBOM; requiere permisos extra
+      # - name: Generate artifact attestation
+      #   uses: actions/attest-build-provenance@v2
+      #   with:
+      #     subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+      #     subject-digest: ${{ steps.build-push.outputs.digest }}
+      #     push-to-registry: true
 
