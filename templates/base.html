@@ -14,6 +14,21 @@
       <script>
         window.__CHAT_ID__ = "{{ chat_id|default('', true) }}";
       </script>
+      <script>
+      (function(){
+        const tg = window.Telegram && window.Telegram.WebApp;
+        if (!tg) return;                 // navegador normal → lo bloqueará el guard
+        try { tg.ready(); } catch(e) {}
+        const initData = tg.initData || "";
+        if (!initData) return;
+        fetch("/api/session/verify", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ initData })
+        }).catch(()=>{});
+      })();
+      </script>
+
       <!-- Carga el bundle modular -->
       <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
     {% endblock %}
