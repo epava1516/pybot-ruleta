@@ -1,1 +1,3 @@
 .env
+certbot
+__pycache__/

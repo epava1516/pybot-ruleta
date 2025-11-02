@@ -26,10 +26,11 @@ services:
     restart: unless-stopped
 
   proxy:
-    image: nginx:1.29-alpine
+    image: nginx:1.25-alpine
     container_name: nginx-proxy
     depends_on:
-      - bot
+      bot:
+        condition: service_started
     env_file: .env
     environment:
       DOMAIN: ${DOMAIN}
@@ -37,9 +38,8 @@ services:
       NGINX_ENVSUBST_OUTPUT_DIR: ${NGINX_ENVSUBST_OUTPUT_DIR:-/etc/nginx/conf.d}
     volumes:
       - ./nginx/templates:/etc/nginx/templates:ro
-      - ./nginx/entrypoint.d:/docker-entrypoint.d:ro
       - ./certbot/www:/var/www/certbot:ro
-      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/conf:/etc/letsencrypt:ro
     ports:
       - "80:80"
       - "443:443"
@@ -52,24 +52,13 @@ services:
     volumes:
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt
-    entrypoint: ["/bin/sh","-lc"]
+    entrypoint: ["sh", "-lc"]
     command: |
       set -e
-      if [ -z "$EMAIL" ] || [ -z "$DOMAIN" ]; then
-        echo "[certbot] EMAIL/DOMAIN no definidos"; exit 1
-      fi
-      if [ ! -e /etc/letsencrypt/live/$DOMAIN/fullchain.pem ]; then
-        echo "[certbot] Primer emisión..."
-        certbot certonly --non-interactive --agree-tos -m "$EMAIL" \
-          --webroot -w /var/www/certbot -d "$DOMAIN"
-      else
-        echo "[certbot] Cert ya existe, intento de renovación..."
-        certbot renew --deploy-hook "true"
-      fi
-      echo "[certbot] Bucle de renovación cada 12h"
+      echo "[certbot] Renovación cada 12h (webroot)"
       while true; do
+        certbot renew --webroot -w /var/www/certbot || true
         sleep 12h
-        certbot renew --deploy-hook "true" || true
       done
     restart: unless-stopped
 
@@ -85,11 +74,14 @@ services:
     command: |
       set -e
       apk add --no-cache inotify-tools docker-cli
-      echo "[reloader] watching /etc/letsencrypt/live for changes"
       mkdir -p /etc/letsencrypt/live
-      while inotifywait -r -e close_write,create,delete,move /etc/letsencrypt/live; do
-        echo "[reloader] certs changed -> nginx reload"
+      echo "[reloader] watching /etc/letsencrypt/live ..."
+      # bucle infinito; aunque inotify falle, reintenta
+      while true; do
+        inotifywait -r -e close_write,create,delete,move /etc/letsencrypt/live >/dev/null 2>&1 || true
+        echo "[reloader] change detected -> nginx reload"
         docker kill -s HUP "$PROXY_CONTAINER" || docker exec "$PROXY_CONTAINER" nginx -s reload || true
+        sleep 1
       done
     restart: unless-stopped
 
