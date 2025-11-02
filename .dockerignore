@@ -11,4 +11,8 @@ virtualenv/
 venv/
 .tmp/
 .cache/
-
+certbot/
+data/
+**/*.pem
+**/*.key
+**/*.crt

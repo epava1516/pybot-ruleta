@@ -36,6 +36,16 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 # -----------------------------
 MODE = os.getenv("MODE", "polling").lower()  # "polling" | "webhook"
 PUBLIC_URL = os.getenv("PUBLIC_URL", f"https://{DOMAIN}").rstrip("/")
+def _as_bool(v: str | None, default=False) -> bool:
+    if v is None:
+        return default
+    return v.strip().lower() in ("1", "true", "yes", "on")
+
+REDIRECT_URL = os.getenv("REDIRECT_URL", "https://thehomelesssherlock.com/")
+
+RESTRICT_TO_TELEGRAM = _as_bool(os.getenv("RESTRICT_TO_TELEGRAM"), False)
+GATE_STRICT          = _as_bool(os.getenv("GATE_STRICT"), False)
+
 # Secreto para cabecera X-Telegram-Bot-Api-Secret-Token
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET") or secrets.token_urlsafe(24)
 

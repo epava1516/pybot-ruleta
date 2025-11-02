@@ -22,7 +22,7 @@ def gate_non_telegram():
     path = request.path or "/"
     if path == "/health" or path == "/telegram/webhook":
         return
-    if path.startswith("/api/") or path.startswith("/statics/"):
+    if path.startswith("/api/") or path.startswith("/static/"):
         return
 
     # ¿ya verificado por cookie?

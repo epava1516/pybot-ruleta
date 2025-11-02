@@ -1,4 +1,5 @@
 from flask import Flask
+from config import TOKEN, REDIRECT_URL, RESTRICT_TO_TELEGRAM, GATE_STRICT
 from .api import api_bp
 from .web import web_bp
 
@@ -8,6 +9,13 @@ def create_app(ptb_app=None, webhook_secret: str | None = None, ptb_loop=None) -
         static_folder="../statics",
         template_folder="../templates",
     )
+    app.config.update(
+        TOKEN=TOKEN,
+        REDIRECT_URL=REDIRECT_URL,
+        RESTRICT_TO_TELEGRAM=RESTRICT_TO_TELEGRAM,
+        GATE_STRICT=GATE_STRICT,
+    )
+
     # Blueprints
     app.register_blueprint(web_bp)
     app.register_blueprint(api_bp, url_prefix="/api")
