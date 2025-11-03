@@ -1,4 +1,3 @@
-// statics/js/api.js
 export function getChatId() {
   // 1) Contexto Telegram real (Main Mini App / direct link / inline)
   const tg = window.Telegram?.WebApp;

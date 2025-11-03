@@ -13,7 +13,7 @@ async def cmd_start(update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "¡Bienvenido! 👋\n\n"
         "Usa la **Mini App** para añadir tiradas y ver estadísticas.\n"
-        "➡️ Ábrela desde el **botón del menú del bot** (junto al campo de escritura)."
+        "➡ Ábrela desde el **botón del menú del bot** (junto al campo de escritura)."
     )
     await update.effective_message.reply_text(
         text,
@@ -76,4 +76,3 @@ async def run_ptb(application):
     finally:
         await application.stop()
         await application.shutdown()
-
