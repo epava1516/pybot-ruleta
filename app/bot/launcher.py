@@ -1,3 +1,4 @@
+# app/bot/launcher.py
 import asyncio
 from telegram.ext import (
     ApplicationBuilder, AIORateLimiter, CommandHandler,
@@ -5,30 +6,25 @@ from telegram.ext import (
 )
 from telegram.request import HTTPXRequest
 from telegram.error import TimedOut as TgTimedOut
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-from telegram.constants import ChatType
 
-# /start: abre la MiniApp con URL FIJA (sin ?chat_id)
+
+# /start: solo mensaje de bienvenida (sin teclados ni enlaces)
 async def cmd_start(update, context: ContextTypes.DEFAULT_TYPE):
-    chat = update.effective_chat
-    base_url = context.bot_data.get("miniapp_url") or "https://example.com"
-
-    if chat.type == ChatType.PRIVATE:
-        kb = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🧩 Abrir Mini App", web_app=WebAppInfo(url=base_url))]]
-        )
-    else:
-        kb = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🧩 Abrir Mini App", url=base_url)]]
-        )
-
+    text = (
+        "¡Bienvenido! 👋\n\n"
+        "Usa la **Mini App** para añadir tiradas y ver estadísticas.\n"
+        "➡️ Ábrela desde el **botón del menú del bot** (junto al campo de escritura)."
+    )
     await update.effective_message.reply_text(
-        "Abre la Mini App para gestionar números y ver estadísticas:",
-        reply_markup=kb
+        text,
+        disable_web_page_preview=True
     )
 
+
+# Opcional: si la Mini App envía datos con WebApp.sendData (no hacemos nada aquí)
 async def web_app_data(update, context: ContextTypes.DEFAULT_TYPE):
     return
+
 
 def build_ptb_app(token: str):
     request = HTTPXRequest(connect_timeout=20.0, read_timeout=60.0, http_version="1.1")
@@ -42,10 +38,14 @@ def build_ptb_app(token: str):
         ))
         .build()
     )
+
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
+
+    # Deja el CallbackQueryHandler por si en el futuro añades callbacks
     app.add_handler(CallbackQueryHandler(lambda *_: None))
     return app
+
 
 async def run_ptb(application):
     attempt = 0

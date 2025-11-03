@@ -1,3 +1,4 @@
+// statics/js/state.js
 export const tg = window.Telegram?.WebApp;
 
 export const refs = {
@@ -13,6 +14,7 @@ export const refs = {
   btnReset:    document.getElementById('btnReset'),
   btnRefresh:  document.getElementById('btnRefresh'),
   btnSettings: document.getElementById('btnSettings'),
+  btnFullscreen: document.getElementById('btnFullscreen'),   // 👈 nuevo
 
   btnSaveNumber:   document.getElementById('btnSaveNumber'),
   btnCancelNumber: document.getElementById('btnCancelNumber'),
@@ -34,7 +36,7 @@ export const state = {
   view: 'stats',
   selected: null,
   lastTag: null,
-  lastEtag: null,   // 👈 ETag cacheado
+  lastEtag: null,
   fetching: false,
   chatId: null,
   cfg: { window: 15, history_cap: 20, hist_tail: 0 },
@@ -47,3 +49,4 @@ export const state = {
 
 // rojo para la cuadrícula
 export const ROJO = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+

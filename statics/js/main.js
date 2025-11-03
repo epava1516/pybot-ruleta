@@ -1,3 +1,4 @@
+// statics/js/main.js
 import { getChatId } from './api.js';
 import { refs, state, tg } from './state.js';
 import { ensureGrid } from './numbers.js';
@@ -7,6 +8,42 @@ import { loadStats, doSend, doRollback, doReset } from './actions.js';
 state.chatId = getChatId();
 setTheme(getTheme()); // oscuro por defecto
 
+// ---- FULLSCREEN helpers ----
+function updateFullscreenLabel() {
+  // Algunas builds exponen booleano 'isFullscreen'; otras emiten payload en evento
+  const on = !!(tg && (tg.isFullscreen === true));
+  if (refs.btnFullscreen) {
+    refs.btnFullscreen.textContent = on ? '🗗 Salir de pantalla completa' : '⛶ Pantalla completa';
+  }
+}
+async function toggleFullscreen() {
+  if (!tg) return;
+  try {
+    if (tg.isFullscreen) {
+      await tg.exitFullscreen?.();
+    } else {
+      // Importante: normalmente requiere gesto del usuario (click)
+      await tg.requestFullscreen?.();
+    }
+  } catch (e) {
+    console.warn('fullscreen toggle failed', e);
+  } finally {
+    updateFullscreenLabel();
+  }
+}
+
+// Algunos clientes disparan eventos
+try {
+  tg?.onEvent?.('fullscreenChanged', (e) => {
+    // e?.is_fullscreen puede venir en algunos SDKs; en webview móvil tg.isFullscreen se actualiza
+    updateFullscreenLabel();
+  });
+  tg?.onEvent?.('fullscreenFailed', (e) => {
+    console.warn('fullscreenFailed', e);
+  });
+} catch {}
+
+// ---- Navegación de vistas ----
 function setActiveView(name){
   state.view = name;
   // secciones
@@ -50,6 +87,7 @@ function disarmRollback(){
 
 // ----- Toolbar principal -----
 refs.btnAdd.onclick = showNumbersView;
+refs.btnFullscreen.onclick = toggleFullscreen;   // 👈 nuevo
 
 // ➜ Confirmación para “Eliminar último”
 refs.btnRollback.onclick = async ()=>{
@@ -104,6 +142,9 @@ refs.btnSaveNumber.onclick = async ()=>{ await doSend(); showStatsView(); };
 refs.btnCancelNumber.onclick = showStatsView;
 
 // ----- Ajustes -----
+import { refs as _r } from './state.js';
+import { cfgChanged as _cc } from './settings.js';
+
 if (refs.pills) {
   refs.pills.addEventListener('click', (e)=>{
     const btn = e.target.closest('[data-size]'); if (!btn) return;
@@ -123,17 +164,14 @@ if (refs.pills) {
     refs.btnSaveSettings.disabled = !cfgChanged(tmp, state.originalCfg);
   });
 });
-if (refs.segTheme){
-  refs.segTheme.addEventListener('click', (e)=>{
-    const b = e.target.closest('.seg-btn'); if (!b) return;
-    setTheme(b.dataset.theme);
-  });
-}
-refs.btnSaveSettings.onclick = async ()=>{ await saveSettings(async ()=>{ await loadStats(true); showStatsView(); }); };
-refs.btnDiscardSettings.onclick = async ()=>{ await loadCfg(); applyCfgToUI(); showStatsView(); };
 
 // ----- Arranque -----
 (async ()=>{
+  // Ajusta el webview a altura completa del cliente Telegram
+  try { tg?.ready?.(); tg?.expand?.(); } catch {}
+
+  updateFullscreenLabel();
+
   ensureGrid(refs.grid, (n)=>{ state.selected = n; refs.btnSaveNumber.disabled = (state.selected === null); });
   await loadCfg();
   applyCfgToUI();
@@ -141,3 +179,4 @@ refs.btnDiscardSettings.onclick = async ()=>{ await loadCfg(); applyCfgToUI(); s
   await loadStats();
   setInterval(async ()=>{ if (state.fetching || document.hidden) return; state.fetching = true; try { await loadStats(); } finally { state.fetching = false; } }, state.POLL_MS);
 })();
+

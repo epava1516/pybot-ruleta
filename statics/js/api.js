@@ -1,22 +1,25 @@
+// statics/js/api.js
 export function getChatId() {
-  // 1) Jinja (solo si vienes con ?chat_id= en modo antiguo)
+  // 1) Contexto Telegram real (Main Mini App / direct link / inline)
+  const tg = window.Telegram?.WebApp;
+  const chat = tg?.initDataUnsafe?.chat;
+  if (chat && typeof chat.id !== 'undefined' && chat.id !== null) {
+    return String(chat.id);
+  }
+  const user = tg?.initDataUnsafe?.user;
+  if (user && typeof user.id !== 'undefined' && user.id !== null) {
+    // En chats privados, el "chat" puede no venir -> usar user.id
+    return String(user.id);
+  }
+
+  // 2) Inyección de servidor (cuando renderizas con Jinja)
   const fromJinja = (window.__CHAT_ID__ || "").trim();
   if (fromJinja) return fromJinja;
 
-  // 2) Querystring (compat backward)
+  // 3) Fallback por query (modo desarrollo o enlaces manuales)
   const qs = new URLSearchParams(location.search);
-  const fromQs = qs.get('chat_id');
-  if (fromQs) return fromQs;
-
-  // 3) Contexto Telegram Mini App (RECOMENDADO)
-  const tg = window.Telegram?.WebApp;
-  const init = tg?.initDataUnsafe || {};
-  // En grupos/canales suele venir chat.id (negativo). En privado, user.id.
-  if (init.chat?.id) return String(init.chat.id);
-  if (init.user?.id) return String(init.user.id);
-
-  // 4) Fallback dev (solo para entorno local navegador)
-  return 'dev';
+  const fromQuery = qs.get('chat_id');
+  return fromQuery || 'dev';
 }
 
 export const API = {
