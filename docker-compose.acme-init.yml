@@ -4,18 +4,18 @@ services:
     container_name: certbot-init
     env_file: .env
     ports:
-      - "80:80"              # standalone http-01 requiere 80 libre en el host
+      - "80:80"     # standalone http-01 necesita 80 libre en el host
     volumes:
       - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    entrypoint: sh
-    command: -lc '
-      set -e
-      if [ -z "$EMAIL" ] || [ -z "$DOMAIN" ]; then
-        echo "[certbot-init] EMAIL/DOMAIN no definidos"; exit 2; fi
-      echo "[certbot-init] Emisión inicial vía standalone (HTTP-01 en :80)…"
-      certbot certonly --non-interactive --agree-tos --email "$EMAIL" \
-        --standalone -d "$DOMAIN"
-      echo "[certbot-init] Cert emitido."
-    '
-
+    entrypoint: ["certbot"]
+    command:
+      - certonly
+      - --standalone
+      - --preferred-challenges
+      - http
+      - -d
+      - ${DOMAIN}
+      - -m
+      - ${EMAIL}
+      - --agree-tos
+      - --non-interactive
