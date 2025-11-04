@@ -7,11 +7,6 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Dependencias del sistema si hicieran falta (comenta si no)
-# RUN apt-get update && apt-get install -y --no-install-recommends \
-#     build-essential \
-#  && rm -rf /var/lib/apt/lists/*
-
 # Instala requirements primero (mejor caché)
 COPY requirements.txt .
 RUN python -m pip install --upgrade pip && \
@@ -26,16 +21,11 @@ RUN groupadd --gid 1001 appgroup && \
     chown -R appuser:appgroup /app
 USER appuser
 
-# Puerto HTTP de tu Flask
+# Puerto usado por el servidor webhook (solo si MODE=webhook)
 EXPOSE 8080
 
-# HEALTHCHECK en forma CMD (sin heredoc)
-# (El endpoint /health lo sirve Flask)
+# HEALTHCHECK salta en modo polling (sin servidor HTTP)
 HEALTHCHECK --interval=30s --timeout=3s --retries=5 \
-  CMD python -c "import urllib.request,sys; \
-u='http://127.0.0.1:8080/health'; \
-r=urllib.request.urlopen(u, timeout=2); \
-sys.exit(0 if r.status==200 else 1)" || exit 1
+  CMD python -c "import os, sys, urllib.request; mode=os.getenv('MODE','polling').lower(); port=os.getenv('WEB_PORT','8080'); if mode != 'webhook': sys.exit(0); url=f'http://127.0.0.1:{port}/health'; resp=urllib.request.urlopen(url, timeout=2); sys.exit(0 if resp.status==200 else 1)" || exit 1
 
 ENTRYPOINT ["python", "main.py"]
-

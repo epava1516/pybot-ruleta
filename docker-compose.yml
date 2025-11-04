@@ -1,6 +1,8 @@
 services:
   bot:
-    image: ghcr.io/epava1516/pybot-ruleta:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: roulette_bot_telegram
     env_file: .env
     environment:
@@ -16,80 +18,16 @@ services:
       LOG_LEVEL: ${LOG_LEVEL}
       WEB_HOST: ${WEB_HOST}
       WEB_PORT: ${WEB_PORT}
-    expose:
-      - "8080"
+      REDIRECT_URL: ${REDIRECT_URL}
+      RESTRICT_TO_TELEGRAM: ${RESTRICT_TO_TELEGRAM}
+      GATE_STRICT: ${GATE_STRICT}
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "${WEB_PORT:-8080}:${WEB_PORT:-8080}"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:${WEB_PORT:-8080}/health || exit 1"]
+      test: ["CMD-SHELL", "if [ \"$${MODE:-polling}\" != \"webhook\" ]; then exit 0; fi; wget -qO- http://127.0.0.1:$${WEB_PORT:-8080}/health || exit 1"]
       interval: 20s
       timeout: 3s
       retries: 5
     restart: unless-stopped
-
-  proxy:
-    image: nginx:1.29-alpine
-    container_name: nginx-proxy
-    depends_on:
-      - bot
-    env_file: .env
-    environment:
-      DOMAIN: ${DOMAIN}
-      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
-      NGINX_ENVSUBST_OUTPUT_DIR: ${NGINX_ENVSUBST_OUTPUT_DIR:-/etc/nginx/conf.d}
-    volumes:
-      - ./nginx/templates:/etc/nginx/templates:ro
-      - ./nginx/entrypoint.d:/docker-entrypoint.d:ro
-      - ./certbot/www:/var/www/certbot:ro
-      - ./certbot/conf:/etc/letsencrypt
-    ports:
-      - "80:80"
-      - "443:443"
-    restart: unless-stopped
-
-  certbot:
-    image: certbot/certbot:latest
-    container_name: certbot
-    env_file: .env
-    volumes:
-      - ./certbot/www:/var/www/certbot
-      - ./certbot/conf:/etc/letsencrypt
-    entrypoint: ["/bin/sh","-lc"]
-    command: |
-      set -e
-      if [ -z "$EMAIL" ] || [ -z "$DOMAIN" ]; then
-        echo "[certbot] EMAIL/DOMAIN no definidos"; exit 1
-      fi
-      if [ ! -e /etc/letsencrypt/live/$DOMAIN/fullchain.pem ]; then
-        echo "[certbot] Primer emisión..."
-        certbot certonly --non-interactive --agree-tos -m "$EMAIL" \
-          --webroot -w /var/www/certbot -d "$DOMAIN"
-      else
-        echo "[certbot] Cert ya existe, intento de renovación..."
-        certbot renew --deploy-hook "true"
-      fi
-      echo "[certbot] Bucle de renovación cada 12h"
-      while true; do
-        sleep 12h
-        certbot renew --deploy-hook "true" || true
-      done
-    restart: unless-stopped
-
-  reloader:
-    image: alpine:3.20
-    container_name: nginx-reloader
-    environment:
-      PROXY_CONTAINER: nginx-proxy
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-    entrypoint: ["/bin/sh","-lc"]
-    command: |
-      set -e
-      apk add --no-cache inotify-tools docker-cli
-      echo "[reloader] watching /etc/letsencrypt/live for changes"
-      mkdir -p /etc/letsencrypt/live
-      while inotifywait -r -e close_write,create,delete,move /etc/letsencrypt/live; do
-        echo "[reloader] certs changed -> nginx reload"
-        docker kill -s HUP "$PROXY_CONTAINER" || docker exec "$PROXY_CONTAINER" nginx -s reload || true
-      done
-    restart: unless-stopped
-

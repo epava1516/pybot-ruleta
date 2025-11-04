@@ -1,27 +1,53 @@
-# 0) Toma DOMAIN y EMAIL del .env (solo estas dos)
-export DOMAIN="$(grep '^DOMAIN=' .env | cut -d= -f2)"
-export EMAIL="$(grep  '^EMAIL='  .env | cut -d= -f2)"
+# Bot de Telegram
 
-# 1) Libera el 80 (para standalone)
-docker compose down
+El repositorio contiene únicamente el backend del bot de Telegram. Todo el código
+vive en `./backend` y la imagen Docker se construye a partir de ese directorio.
 
-# 2) Asegura el directorio de LE en el host
-sudo mkdir -p ./certbot/conf
+## Variables de entorno
 
-# 3) Emite el certificado con nombre EXACTO = $DOMAIN
-docker run --rm -p 80:80 \
-  -v "$PWD/certbot/conf:/etc/letsencrypt" \
-  certbot/certbot:latest certonly --standalone \
-  --preferred-challenges http \
-  --cert-name "$DOMAIN" -d "$DOMAIN" -m "$EMAIL" \
-  --agree-tos --non-interactive
+El archivo `.env` es la fuente de verdad. Los valores actuales que utiliza el
+bot son:
 
-# 4) Comprueba que ahora existe la ruta SIN sufijo
-sudo ls -l "./certbot/conf/live/$DOMAIN/fullchain.pem" "./certbot/conf/live/$DOMAIN/privkey.pem"
+- `TOKEN` y `DOMAIN` **(obligatorias)**.
+- `PUBLIC_URL`, `WEBHOOK_SECRET`, `MODE`, `WEB_HOST`, `WEB_PORT` para el modo
+  webhook (el bot expone `/telegram/webhook` internamente y espera recibir las
+  peticiones desde el dominio público definido).
+- `DATA_FILE`, `DEFAULT_WINDOW`, `DEFAULT_DATA_LIMIT` para la persistencia de
+  tiradas.
+- `ENVIRONMENT`, `LOG_LEVEL`, `RESTRICT_TO_TELEGRAM`, `GATE_STRICT`,
+  `REDIRECT_URL` para ajustar comportamiento auxiliar.
 
-# 5) Sube el stack normal y recarga Nginx
-docker compose up -d
-docker compose kill -s HUP nginx-proxy || docker compose exec nginx-proxy nginx -s reload || true
+Si un valor no está definido en `.env` se usará el que aparece como defecto en
+`backend/config.py`.
 
-# 6) Prueba
-curl -I "https://${DOMAIN}/health"
+## Puesta en marcha con Docker
+
+1. Crea los directorios de datos si aún no existen:
+
+   ```bash
+   mkdir -p data
+   ```
+
+2. Arranca el bot:
+
+   ```bash
+   docker compose up -d
+   ```
+
+   El servicio se llama `bot` y monta `./data` dentro del contenedor para
+   persistir `data/rolls.json`.
+
+3. El modo por defecto es *polling*. Si necesitas usar webhooks, asegura que:
+
+   - `MODE=webhook` y `PUBLIC_URL` apuntan al dominio con certificado TLS.
+   - El puerto `WEB_PORT` está expuesto (por defecto `8080`). El `docker-compose`
+     ya publica `WEB_PORT` hacia el host. Termina TLS con el proxy que prefieras
+     (Traefik, Caddy, Nginx externo, etc.) apuntando al contenedor.
+
+4. Para ver los logs:
+
+   ```bash
+   docker compose logs -f bot
+   ```
+
+Para detener el servicio usa `docker compose down`.
