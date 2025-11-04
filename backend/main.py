@@ -1,11 +1,22 @@
 import asyncio
 import os
+from urllib.parse import urlparse
+
 from aiohttp import web
 
 from app.bot.launcher import build_ptb_app, run_ptb
-from config import MODE, PUBLIC_URL, TOKEN, WEBHOOK_SECRET
+from config import MODE, TOKEN, WEBHOOK_SECRET, WEBHOOK_URL
 
-WEBHOOK_PATH = "/telegram/webhook"
+
+def _webhook_path_from_url(url: str) -> str:
+    parsed = urlparse(url)
+    path = parsed.path or "/telegram/webhook"
+    if not path.startswith("/"):
+        path = f"/{path}"
+    return path
+
+
+WEBHOOK_PATH = _webhook_path_from_url(WEBHOOK_URL)
 
 
 async def _run_webhook(application, host: str, port: int, webhook_url: str, secret_token: str) -> None:
@@ -71,8 +82,7 @@ async def main() -> None:
     application = build_ptb_app(TOKEN)
 
     if mode == "webhook":
-        webhook_url = f"{PUBLIC_URL.rstrip('/')}{WEBHOOK_PATH}"
-        await _run_webhook(application, host, port, webhook_url, WEBHOOK_SECRET)
+        await _run_webhook(application, host, port, WEBHOOK_URL, WEBHOOK_SECRET)
     else:
         await run_ptb(application)
 
