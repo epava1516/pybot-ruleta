@@ -21,7 +21,7 @@ server {
   }
 }
 
-# HTTPS: proxy al bot
+# HTTPS: solo expone el webhook del bot
 server {
   listen 443 ssl;
   listen [::]:443 ssl;
@@ -35,10 +35,10 @@ server {
   ssl_prefer_server_ciphers on;
   add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
-  # Health del proxy -> app
+  # Health del proxy (no requiere pasar por el bot)
   location = /health {
-    proxy_pass http://bot:8080/health;
-    proxy_set_header Host $host;
+    return 200 "ok\n";
+    add_header Content-Type text/plain;
   }
 
   # Webhook (con token secreto)
@@ -50,12 +50,8 @@ server {
     proxy_set_header X-Telegram-Bot-Api-Secret-Token "${WEBHOOK_SECRET}";
   }
 
-  # Resto de rutas a la MiniApp/Flask
+  # Resto de rutas -> 404
   location / {
-    proxy_pass http://bot:8080;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Real-IP $remote_addr;
+    return 404;
   }
 }
-

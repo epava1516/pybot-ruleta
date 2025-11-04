@@ -1,6 +1,8 @@
 services:
   bot:
-    image: ghcr.io/epava1516/pybot-ruleta:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: roulette_bot_telegram
     env_file: .env
     environment:
@@ -19,7 +21,7 @@ services:
     expose:
       - "8080"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:${WEB_PORT:-8080}/health || exit 1"]
+      test: ["CMD-SHELL", "if [ \"$${MODE:-polling}\" != \"webhook\" ]; then exit 0; fi; wget -qO- http://127.0.0.1:$${WEB_PORT:-8080}/health || exit 1"]
       interval: 20s
       timeout: 3s
       retries: 5

@@ -1,27 +1,31 @@
 # app/bot/launcher.py
 import asyncio
 from telegram.ext import (
-    ApplicationBuilder, AIORateLimiter, CommandHandler,
-    MessageHandler, CallbackQueryHandler, filters, ContextTypes
+    ApplicationBuilder,
+    AIORateLimiter,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    filters,
+    ContextTypes,
 )
 from telegram.request import HTTPXRequest
 from telegram.error import TimedOut as TgTimedOut
 
 
-# /start: solo mensaje de bienvenida (sin teclados ni enlaces)
+# /start: mensaje de bienvenida sencillo
 async def cmd_start(update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "¡Bienvenido! 👋\n\n"
-        "Usa la **Mini App** para añadir tiradas y ver estadísticas.\n"
-        "➡ Ábrela desde el **botón del menú del bot** (junto al campo de escritura)."
+        "Configura tu grupo y usa los comandos disponibles para gestionar tus tiradas."
     )
     await update.effective_message.reply_text(
         text,
-        disable_web_page_preview=True
+        disable_web_page_preview=True,
     )
 
 
-# Opcional: si la Mini App envía datos con WebApp.sendData (no hacemos nada aquí)
+# Placeholder para futuros datos enviados desde una WebApp
 async def web_app_data(update, context: ContextTypes.DEFAULT_TYPE):
     return
 
@@ -32,10 +36,14 @@ def build_ptb_app(token: str):
         ApplicationBuilder()
         .token(token)
         .request(request)
-        .rate_limiter(AIORateLimiter(
-            overall_max_rate=30, overall_time_period=1.0,
-            group_max_rate=18, group_time_period=60
-        ))
+        .rate_limiter(
+            AIORateLimiter(
+                overall_max_rate=30,
+                overall_time_period=1.0,
+                group_max_rate=18,
+                group_time_period=60,
+            )
+        )
         .build()
     )
 
