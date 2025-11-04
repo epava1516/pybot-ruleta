@@ -1,6 +1,29 @@
 import os
 import sys
 import secrets
+from urllib.parse import urlparse
+
+
+def _normalize_domain(domain: str) -> str:
+    domain = domain.strip()
+    if not domain:
+        return ""
+
+    # Acepta dominios con o sin esquema y descarta cualquier ruta o query
+    parsed = urlparse(domain if "://" in domain else f"//{domain}", scheme="https")
+    return (parsed.hostname or "").strip()
+
+
+def _normalize_public_url(public_url: str | None, domain: str) -> str:
+    if public_url and public_url.strip():
+        url = public_url.strip()
+    else:
+        url = f"https://{domain}"
+
+    if not url.startswith(("http://", "https://")):
+        url = f"https://{url}"
+
+    return url.rstrip("/")
 
 
 def _as_bool(value: str | None, default: bool = False) -> bool:
@@ -13,10 +36,16 @@ def _as_bool(value: str | None, default: bool = False) -> bool:
 # Variables de entorno obligatorias
 # -----------------------------
 TOKEN = os.getenv("TOKEN")
-DOMAIN = os.getenv("DOMAIN")
+DOMAIN_RAW = os.getenv("DOMAIN")
 
-if not TOKEN or not DOMAIN:
+if not TOKEN or not DOMAIN_RAW:
     print("ERROR: Las variables de entorno TOKEN y DOMAIN deben estar definidas.")
+    sys.exit(1)
+
+DOMAIN = _normalize_domain(DOMAIN_RAW)
+
+if not DOMAIN:
+    print("ERROR: La variable de entorno DOMAIN no contiene un dominio válido.")
     sys.exit(1)
 
 # -----------------------------
@@ -42,7 +71,7 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 # Modo de ejecución del bot y URLs auxiliares
 # -----------------------------
 MODE = os.getenv("MODE", "polling").lower()  # "polling" | "webhook"
-PUBLIC_URL = os.getenv("PUBLIC_URL", f"https://{DOMAIN}").rstrip("/")
+PUBLIC_URL = _normalize_public_url(os.getenv("PUBLIC_URL"), DOMAIN)
 REDIRECT_URL = os.getenv("REDIRECT_URL", "https://thehomelesssherlock.com/")
 
 RESTRICT_TO_TELEGRAM = _as_bool(os.getenv("RESTRICT_TO_TELEGRAM"), False)
@@ -56,7 +85,7 @@ WEBHOOK_URL = f"{PUBLIC_URL}/telegram/webhook"
 # Imprimir configuración para debug (omite en producción)
 # -----------------------------
 if ENVIRONMENT.lower() != "production":
-    print(f"CONFIG --> TOKEN=[***hidden***], DOMAIN={DOMAIN}")
+    print(f"CONFIG --> TOKEN=[***hidden***], DOMAIN_RAW={DOMAIN_RAW}, DOMAIN={DOMAIN}")
     print(f"CONFIG --> DATA_FILE={DATA_FILE}")
     print(f"CONFIG --> DEFAULT_WINDOW={DEFAULT_WINDOW}, DEFAULT_DATA_LIMIT={DEFAULT_DATA_LIMIT}")
     print(f"CONFIG --> MODE={MODE}, PUBLIC_URL={PUBLIC_URL}")
