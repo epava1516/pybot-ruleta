@@ -26,11 +26,12 @@ async def _run_webhook(application, host: str, port: int, webhook_url: str, secr
             await application.initialize()
             await application.start()
 
-            if application.web_app:
-                async def health(_request: web.Request) -> web.Response:
-                    return web.Response(text="ok\n", content_type="text/plain")
+            webhook_app = web.Application()
 
-                application.web_app.router.add_get("/health", health)
+            async def health(_request: web.Request) -> web.Response:
+                return web.Response(text="ok\n", content_type="text/plain")
+
+            webhook_app.router.add_get("/health", health)
 
             await application.bot.set_webhook(
                 url=webhook_url,
@@ -44,6 +45,7 @@ async def _run_webhook(application, host: str, port: int, webhook_url: str, secr
                 url_path=WEBHOOK_PATH.lstrip("/"),
                 webhook_url=None,
                 secret_token=secret_token,
+                webhook_app=webhook_app,
             )
             print(f"[Bot] Webhook escuchando en http://{host}:{port}{WEBHOOK_PATH} -> {webhook_url}")
             break
@@ -51,6 +53,18 @@ async def _run_webhook(application, host: str, port: int, webhook_url: str, secr
             attempt += 1
             delay = min(5 * attempt, 30)
             print(f"[Bot] Error al iniciar webhook (intento {attempt}): {exc}. Reintentando en {delay}s…")
+            try:
+                await application.updater.stop()
+            except Exception:  # pragma: no cover - mejor esfuerzo
+                pass
+            try:
+                await application.stop()
+            except Exception:  # pragma: no cover - mejor esfuerzo
+                pass
+            try:
+                await application.shutdown()
+            except Exception:  # pragma: no cover - mejor esfuerzo
+                pass
             await asyncio.sleep(delay)
 
     try:
