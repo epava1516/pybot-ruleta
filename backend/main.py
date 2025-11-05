@@ -1,24 +1,12 @@
 import asyncio
 import os
 from typing import Optional
-from urllib.parse import urlparse
 
 from aiohttp import web
 from telegram import Update
 
 from app.bot.launcher import build_ptb_app, run_ptb
-from config import MODE, TOKEN, WEBHOOK_SECRET, WEBHOOK_URL
-
-
-def _webhook_path_from_url(url: str) -> str:
-    parsed = urlparse(url)
-    path = parsed.path or "/telegram/webhook"
-    if not path.startswith("/"):
-        path = f"/{path}"
-    return path
-
-
-WEBHOOK_PATH = _webhook_path_from_url(WEBHOOK_URL)
+from config import MODE, TOKEN, WEBHOOK_PATH, WEBHOOK_SECRET, WEBHOOK_URL
 
 
 async def _stop_application(application) -> None:
@@ -83,6 +71,14 @@ async def _run_webhook(application, host: str, port: int, webhook_url: str, secr
                 return web.Response(text="ok")
 
             webhook_app.router.add_get("/health", health)
+            webhook_app.router.add_get(
+                WEBHOOK_PATH,
+                lambda _request: web.Response(text="ok\n", content_type="text/plain"),
+            )
+            webhook_app.router.add_head(
+                WEBHOOK_PATH,
+                lambda _request: web.Response(status=200),
+            )
             webhook_app.router.add_post(WEBHOOK_PATH, telegram_webhook)
 
             runner = web.AppRunner(webhook_app)
