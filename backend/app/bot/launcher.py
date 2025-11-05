@@ -61,6 +61,12 @@ async def run_ptb(application):
         try:
             await application.initialize()
             await application.start()
+            # Asegura que no exista un webhook activo de ejecuciones anteriores.
+            # Telegram no permite usar getUpdates si hay un webhook configurado y
+            # lanza "Conflict: can't use getUpdates method while webhook active".
+            # Eliminarlo antes de iniciar el polling evita que el bot quede en un
+            # bucle de reconexión sin procesar comandos como /start.
+            await application.bot.delete_webhook(drop_pending_updates=False)
             await application.updater.start_polling()
             break
         except (TgTimedOut, asyncio.TimeoutError) as e:
